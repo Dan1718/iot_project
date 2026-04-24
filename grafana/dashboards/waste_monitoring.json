@@ -2,7 +2,7 @@
   "title": "Smart City Waste Monitoring — Hyderabad",
   "uid": "smartcity-waste-v1",
   "schemaVersion": 39,
-  "version": 5,
+  "version": 6,
   "refresh": "10s",
   "time": { "from": "now-30d", "to": "now" },
   "tags": ["iot", "waste", "hyderabad"],
@@ -434,114 +434,6 @@
         "refId": "A"
       }]
     },
-
-    {
-      "id": 22,
-      "title": "Physical Bin — Street Lamp",
-      "type": "stat",
-      "gridPos": { "x": 6, "y": 32, "w": 3, "h": 7 },
-      "fieldConfig": {
-        "defaults": {
-          "mappings": [
-            { "type": "value", "options": { "true":  { "text": "ON",  "color": "yellow", "index": 0 } } },
-            { "type": "value", "options": { "false": { "text": "OFF", "color": "blue",   "index": 1 } } }
-          ],
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] }
-        }
-      },
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "values": true, "limit": 1 }, "textMode": "value", "colorMode": "background" },
-      "targets": [{
-        "datasource": { "type": "influxdb", "uid": "InfluxDB" },
-        "query": "from(bucket: \"waste_monitoring\")\n  |> range(start: -2m)\n  |> filter(fn: (r) => r._measurement == \"bin_telemetry\" and r._field == \"lamp_on\" and r.bin_id == \"BIN_001\")\n  |> last()\n  |> yield(name: \"lamp\")",
-        "refId": "A"
-      }]
-    },
-
-    {
-      "id": 23,
-      "title": "Physical Bin — LDR (Ambient Light)",
-      "type": "stat",
-      "gridPos": { "x": 9, "y": 32, "w": 3, "h": 7 },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "blue",   "value": null },
-              { "color": "yellow", "value": 1500 },
-              { "color": "orange", "value": 3000 }
-            ]
-          }
-        }
-      },
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "values": true, "limit": 1 }, "colorMode": "value", "graphMode": "area" },
-      "targets": [{
-        "datasource": { "type": "influxdb", "uid": "InfluxDB" },
-        "query": "from(bucket: \"waste_monitoring\")\n  |> range(start: -2m)\n  |> filter(fn: (r) => r._measurement == \"bin_telemetry\" and r._field == \"ldr_raw\" and r.bin_id == \"BIN_001\")\n  |> last()\n  |> yield(name: \"ldr\")",
-        "refId": "A"
-      }]
-    },
-
-    {
-      "id": 24,
-      "title": "Physical Bin — Fill Over Time",
-      "type": "timeseries",
-      "gridPos": { "x": 12, "y": 32, "w": 12, "h": 7 },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent", "min": 0, "max": 100,
-          "custom": { "lineWidth": 2, "fillOpacity": 20 },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "green",  "value": null },
-              { "color": "yellow", "value": 40 },
-              { "color": "red",    "value": 80 }
-            ]
-          },
-          "color": { "mode": "thresholds" }
-        }
-      },
-      "options": { "legend": { "displayMode": "hidden" }, "tooltip": { "mode": "single" } },
-      "targets": [{
-        "datasource": { "type": "influxdb", "uid": "InfluxDB" },
-        "query": "from(bucket: \"waste_monitoring\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"bin_telemetry\" and r._field == \"fill_pct\" and r.bin_id == \"BIN_001\")\n  |> aggregateWindow(every: 1m, fn: last, createEmpty: false)\n  |> yield(name: \"physical_fill_history\")",
-        "refId": "A"
-      }]
-    },
-
-    {
-      "id": 25,
-      "title": "Physical Bin — Events",
-      "type": "table",
-      "gridPos": { "x": 0, "y": 39, "w": 24, "h": 6 },
-      "fieldConfig": {
-        "defaults": { "unit": "short" },
-        "overrides": [
-          { "matcher": { "id": "byName", "options": "event_type" },
-            "properties": [
-              { "id": "displayName", "value": "Event" },
-              { "id": "custom.width", "value": 120 },
-              { "id": "mappings", "value": [
-                { "type": "value", "options": { "FULL":     { "text": "🔴 FULL",     "color": "red"    } } },
-                { "type": "value", "options": { "RESET":    { "text": "✅ RESET",    "color": "green"  } } },
-                { "type": "value", "options": { "APPROACH": { "text": "👤 APPROACH", "color": "blue"   } } }
-              ]}
-            ]
-          },
-          { "matcher": { "id": "byName", "options": "_time" },
-            "properties": [{ "id": "displayName", "value": "Time" }, { "id": "custom.width", "value": 200 }]
-          }
-        ]
-      },
-      "options": { "sortBy": [{ "displayName": "Time", "desc": true }] },
-      "targets": [{
-        "datasource": { "type": "influxdb", "uid": "InfluxDB" },
-        "query": "from(bucket: \"waste_monitoring\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"bin_events\" and r.bin_id == \"BIN_001\")\n  |> keep(columns: [\"_time\", \"event_type\", \"bin_id\"])\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 50)\n  |> yield(name: \"physical_events\")",
-        "refId": "A"
-      }]
-    }
 
   ],
 
