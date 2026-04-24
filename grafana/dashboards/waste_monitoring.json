@@ -2,7 +2,7 @@
   "title": "Smart City Waste Monitoring — Hyderabad",
   "uid": "smartcity-waste-v2",
   "schemaVersion": 39,
-  "version": 7,
+  "version": 8,
   "refresh": "10s",
   "time": { "from": "now-30d", "to": "now" },
   "tags": ["iot", "waste", "hyderabad"],
@@ -458,7 +458,7 @@
       "options": { "reduceOptions": { "calcs": ["lastNotNull"], "values": true, "limit": 1 }, "showThresholdLabels": true, "showThresholdMarkers": true },
       "targets": [{
         "datasource": { "type": "influxdb", "uid": "InfluxDB" },
-        "query": "from(bucket: \"waste_monitoring\")\n  |> range(start: -2m)\n  |> filter(fn: (r) => r._measurement == \"bin_telemetry\" and r._field == \"fill_pct\" and r.bin_id == \"BIN_001\")\n  |> last()\n  |> yield(name: \"physical_fill\")",
+        "query": "from(bucket: \"waste_monitoring\")\n  |> range(start: -30m)\n  |> filter(fn: (r) => r._measurement == \"bin_telemetry\" and r._field == \"fill_pct\" and r.bin_id == \"BIN_001\")\n  |> filter(fn: (r) => r._value > 0)\n  |> last()\n  |> yield(name: \"physical_fill\")",
         "refId": "A"
       }]
     }],

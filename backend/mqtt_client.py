@@ -53,11 +53,26 @@ def _on_message(client, userdata, msg):
     # using their bin_id as the zone name so they appear in Grafana.
     if not meta and not bin_id.startswith("HYD_"):
         logger.info("[AUTO-REGISTER] Physical bin detected: %s", bin_id)
+        # Load correct metadata from bin_locations.json if available
+        # so zone/lat/lon are correct from the first message
+        import pathlib, json as _json
+
+        _locations_path = (
+            pathlib.Path(__file__).parent.parent / "simulator" / "bin_locations.json"
+        )
+        _known = {}
+        try:
+            with open(_locations_path) as _f:
+                for _loc in _json.load(_f):
+                    _known[_loc["bin_id"]] = _loc
+        except Exception:
+            pass
+        _loc_data = _known.get(bin_id, {})
         bin_registry.register_metadata(
             bin_id=bin_id,
-            zone=bin_id,  # e.g. "BIN_001" becomes its own zone
-            lat=17.3850,
-            lon=78.4867,
+            zone=_loc_data.get("zone", "Demo Bin"),
+            lat=_loc_data.get("lat", 17.3850),
+            lon=_loc_data.get("lon", 78.4867),
             physical=True,
         )
         meta = bin_registry.get_metadata(bin_id)
