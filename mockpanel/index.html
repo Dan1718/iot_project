@@ -552,7 +552,11 @@
 <script>
   // ── Config ──────────────────────────────────────────────────────────────────
   const BIN_ID        = 'BIN_001';
-  const WS_URL        = `ws://${location.hostname}:9001`;
+  const onDomain = location.hostname !== 'localhost' && location.hostname !== '127.0.0.1';
+  const proto    = location.protocol === 'https:' ? 'wss' : 'ws';
+  const WS_URL   = onDomain
+    ? `${proto}://${location.hostname}/mqtt`
+    : `ws://${location.hostname}:9001`;
   const PANEL_PASSCODE = 'password';
 
   const topicTel = `city/bins/${BIN_ID}/telemetry`;
