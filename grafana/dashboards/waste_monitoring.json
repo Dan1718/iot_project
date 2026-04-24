@@ -1,6 +1,6 @@
 {
   "title": "Smart City Waste Monitoring — Hyderabad",
-  "uid": "smartcity-waste-v1",
+  "uid": "smartcity-waste-v2",
   "schemaVersion": 39,
   "version": 7,
   "refresh": "10s",
@@ -461,9 +461,7 @@
         "query": "from(bucket: \"waste_monitoring\")\n  |> range(start: -2m)\n  |> filter(fn: (r) => r._measurement == \"bin_telemetry\" and r._field == \"fill_pct\" and r.bin_id == \"BIN_001\")\n  |> last()\n  |> yield(name: \"physical_fill\")",
         "refId": "A"
       }]
-    },
-
-  ],
+    }],
 
   "templating": {
     "list": [
