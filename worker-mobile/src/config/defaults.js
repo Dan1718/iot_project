@@ -4,7 +4,10 @@ export const MQTT_USER = 'smartcity';
 export const MQTT_PASSWORD = 'password';
 
 export function buildApiBase(host) {
-  return `http://${host}:8000`;
+  const isLocalhost = host === 'localhost' || host === '127.0.0.1' || host.match(/^\d+\.\d+\.\d+\.\d+$/);
+  const proto = isLocalhost ? 'http' : 'https';
+  const port  = isLocalhost ? ':8000' : '';
+  return `${proto}://${host}${port}/backend`;
 }
 
 export function buildMqttUrl(host) {
