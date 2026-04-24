@@ -2,7 +2,7 @@
   "title": "Smart City Waste Monitoring — Hyderabad",
   "uid": "smartcity-waste-v1",
   "schemaVersion": 39,
-  "version": 4,
+  "version": 5,
   "refresh": "10s",
   "time": { "from": "now-30d", "to": "now" },
   "tags": ["iot", "waste", "hyderabad"],
@@ -268,24 +268,7 @@
       }]
     },
 
-    {
-      "id": 10,
-      "title": "Collections by Zone (last 7 days)",
-      "type": "barchart",
-      "gridPos": { "x": 12, "y": 23, "w": 12, "h": 8 },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "custom": { "fillOpacity": 80, "barRadius": 0.05 }
-        }
-      },
-      "options": { "orientation": "horizontal", "legend": { "displayMode": "hidden" } },
-      "targets": [{
-        "datasource": { "type": "influxdb", "uid": "InfluxDB" },
-        "query": "from(bucket: \"waste_monitoring\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"bin_events\" and r._field == \"value\" and r.event_type == \"RESET\")\n  |> filter(fn: (r) => r.zone =~ /^${zone:regex}$/)\n  |> filter(fn: (r) => r.zone !~ /^HYD_/ and r.zone != \"BIN_001\")\n  |> group(columns: [\"zone\"])\n  |> sum()\n  |> group()\n  |> sort(columns: [\"_value\"], desc: true)\n  |> yield(name: \"resets_by_zone\")",
-        "refId": "A"
-      }]
-    },
+
 
     {
       "id": 30,
@@ -375,12 +358,12 @@
       "options": {
         "orientation": "horizontal",
         "displayMode": "gradient",
-        "reduceOptions": { "calcs": ["mean"], "values": false },
+        "reduceOptions": { "calcs": ["lastNotNull"], "values": true, "limit": 25 },
         "showUnfilled": true
       },
       "targets": [{
         "datasource": { "type": "influxdb", "uid": "InfluxDB" },
-        "query": "from(bucket: \"waste_monitoring\")\n  |> range(start: -2h)\n  |> filter(fn: (r) => r._measurement == \"bin_telemetry\" and r._field == \"fill_pct\")\n  |> filter(fn: (r) => r.zone !~ /^HYD_/ and r.zone != \"BIN_001\")\n  |> group(columns: [\"zone\"])\n  |> aggregateWindow(every: 30m, fn: mean, createEmpty: false)\n  |> difference()\n  |> mean()\n  |> map(fn: (r) => ({ r with _value: r._value * 2.0, _field: r.zone }))\n  |> yield(name: \"fill_rate\")",
+        "query": "from(bucket: \"waste_monitoring\")\n  |> range(start: -3h)\n  |> filter(fn: (r) => r._measurement == \"bin_telemetry\" and r._field == \"fill_pct\")\n  |> filter(fn: (r) => r.zone !~ /^HYD_/ and r.zone != \"BIN_001\")\n  |> group(columns: [\"zone\"])\n  |> aggregateWindow(every: 30m, fn: mean, createEmpty: false)\n  |> difference()\n  |> mean()\n  |> filter(fn: (r) => r._value > 0)\n  |> map(fn: (r) => ({ r with _value: r._value * 2.0, _field: r.zone }))\n  |> yield(name: \"fill_rate\")",
         "refId": "A"
       }]
     },

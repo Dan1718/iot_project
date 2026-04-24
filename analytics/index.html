@@ -74,7 +74,7 @@
     .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
     .card-header { padding: .875rem 1rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
     .card-title { font-weight: 700; font-size: .9rem; }
-    #map { height: 480px; width: 100%; }
+    #map { height: 520px; width: 100%; }
 
     /* ── Route optimizer ── */
     .route-card { display: flex; flex-direction: column; gap: 0; }
@@ -268,7 +268,7 @@
   const DEPOT = { lat: 17.3850, lon: 78.4867, name: 'GHMC Depot' };
 
   // ── Map init ─────────────────────────────────────────────────────────────────
-  const map = L.map('map').setView([17.385, 78.4867], 11);
+  const map = L.map('map').setView([17.42, 78.48], 11);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '© OpenStreetMap contributors',
     maxZoom: 18,
@@ -335,22 +335,26 @@
 
   // ── Map markers ──────────────────────────────────────────────────────────
   function updateMap(bins) {
-    // Remove old markers
     Object.values(binMarkers).forEach(m => map.removeLayer(m));
     binMarkers = {};
 
-    bins.forEach(bin => {
+    // Sort so full bins render last (on top)
+    const sorted = [...bins].sort((a, b) => a.fill_pct - b.fill_pct);
+
+    sorted.forEach(bin => {
       if (!bin.lat || !bin.lon) return;
       const color  = fillColor(bin.fill_pct);
-      const radius = 4 + (bin.fill_pct / 100) * 10;
+      // Bigger radius so clusters are visible — full bins are largest
+      const radius = bin.fill_pct >= 80 ? 10 : bin.fill_pct >= 40 ? 7 : 5;
 
       const circle = L.circleMarker([bin.lat, bin.lon], {
         radius,
         fillColor: color,
-        color: '#fff',
-        weight: 1.5,
+        color: bin.fill_pct >= 80 ? '#fff' : 'rgba(255,255,255,0.6)',
+        weight: bin.fill_pct >= 80 ? 2 : 1,
         opacity: 1,
-        fillOpacity: 0.85,
+        fillOpacity: bin.fill_pct >= 80 ? 0.95 : 0.75,
+        zIndexOffset: bin.fill_pct >= 80 ? 1000 : 0,
       }).addTo(map);
 
       const eta = bin.est_hours_to_full !== null
