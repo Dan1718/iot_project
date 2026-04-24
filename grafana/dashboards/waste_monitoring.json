@@ -2,7 +2,7 @@
   "title": "Smart City Waste Monitoring — Hyderabad",
   "uid": "smartcity-waste-v2",
   "schemaVersion": 39,
-  "version": 8,
+  "version": 9,
   "refresh": "10s",
   "time": { "from": "now-30d", "to": "now" },
   "tags": ["iot", "waste", "hyderabad"],
@@ -461,7 +461,67 @@
         "query": "from(bucket: \"waste_monitoring\")\n  |> range(start: -30m)\n  |> filter(fn: (r) => r._measurement == \"bin_telemetry\" and r._field == \"fill_pct\" and r.bin_id == \"BIN_001\")\n  |> filter(fn: (r) => r._value > 0)\n  |> last()\n  |> yield(name: \"physical_fill\")",
         "refId": "A"
       }]
-    }],
+    },
+
+    {
+      "id": 26,
+      "title": "Demo Bin — Live Event Log",
+      "type": "table",
+      "gridPos": { "x": 6, "y": 32, "w": 18, "h": 7 },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "custom": { "filterable": false } },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "_time" },
+            "properties": [
+              { "id": "displayName", "value": "Time" },
+              { "id": "custom.width", "value": 180 },
+              { "id": "unit", "value": "dateTimeAsLocal" }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "event_type" },
+            "properties": [
+              { "id": "displayName", "value": "Event" },
+              { "id": "custom.width", "value": 130 },
+              { "id": "mappings", "value": [
+                { "type": "value", "options": {
+                  "FULL":     { "text": "🔴  FULL",     "color": "red",   "index": 0 },
+                  "RESET":    { "text": "✅  RESET",    "color": "green", "index": 1 },
+                  "APPROACH": { "text": "👤  APPROACH", "color": "blue",  "index": 2 }
+                }}
+              ]},
+              { "id": "custom.displayMode", "value": "color-text" }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "fill_pct" },
+            "properties": [
+              { "id": "displayName", "value": "Fill % at Event" },
+              { "id": "unit", "value": "percent" },
+              { "id": "custom.width", "value": 140 },
+              { "id": "thresholds", "value": { "mode": "absolute", "steps": [
+                { "color": "green", "value": null },
+                { "color": "yellow", "value": 40 },
+                { "color": "red", "value": 80 }
+              ]}},
+              { "id": "custom.displayMode", "value": "color-background" }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "sortBy": [{ "displayName": "Time", "desc": true }],
+        "footer": { "show": false }
+      },
+      "targets": [{
+        "datasource": { "type": "influxdb", "uid": "InfluxDB" },
+        "query": "from(bucket: \"waste_monitoring\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"bin_events\" and r.bin_id == \"BIN_001\" and r._field == \"value\")\n  |> keep(columns: [\"_time\", \"event_type\"])\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 50)\n  |> yield(name: \"event_log\")",
+        "refId": "A"
+      }]
+    }
+
+  ],
 
   "templating": {
     "list": [
