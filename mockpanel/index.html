@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Smart Bin — Demo Panel</title>
+  <script src="https://unpkg.com/mqtt@5.3.4/dist/mqtt.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg:       #f7f7f5;
+      --surface:  #ffffff;
+      --border:   #e4e4e0;
+      --border2:  #d1d1cc;
+      --text:     #1c1c1a;
+      --muted:    #6b6b66;
+      --faint:    #a8a8a3;
+      --green:    #16a34a;
+      --green-bg: #f0fdf4;
+      --green-mid:#bbf7d0;
+      --yellow:   #d97706;
+      --yellow-bg:#fffbeb;
+      --red:      #dc2626;
+      --red-bg:   #fef2f2;
+      --blue:     #2563eb;
+      --sans:     'Outfit', sans-serif;
+      --mono:     'DM Mono', monospace;
+      --radius:   12px;
+      --shadow:   0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+      --shadow-md:0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      min-height: 100vh;
+      font-size: 15px;
+      line-height: 1.5;
+    }
+
+    /* ── Gate ──────────────────────────────────────────────────────────────── */
+    .gate {
+      position: fixed;
+      inset: 0;
+      background: var(--bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 500;
+    }
+    .gate-inner {
+      width: min(90vw, 360px);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 2rem;
+      box-shadow: var(--shadow-md);
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      animation: fadeUp .35s ease both;
+    }
+    .gate-icon {
+      font-size: 2.2rem;
+      line-height: 1;
+      margin-bottom: .25rem;
+    }
+    .gate-title {
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -.02em;
+    }
+    .gate-sub {
+      font-size: .875rem;
+      color: var(--muted);
+      margin-top: -.5rem;
+    }
+
+    /* ── Layout ────────────────────────────────────────────────────────────── */
+    .app { display: none; flex-direction: column; min-height: 100vh; }
+    .app.visible { display: flex; animation: fadeIn .3s ease both; }
+
+    .topbar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: .875rem 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: .75rem;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .topbar-icon {
+      width: 34px; height: 34px;
+      background: var(--green);
+      color: #fff;
+      border-radius: 9px;
+      display: grid;
+      place-items: center;
+      font-size: 1.1rem;
+      flex-shrink: 0;
+    }
+    .topbar-title {
+      font-size: .95rem;
+      font-weight: 600;
+      color: var(--text);
+      letter-spacing: -.01em;
+    }
+    .topbar-sub {
+      font-size: .78rem;
+      color: var(--muted);
+      font-family: var(--mono);
+      margin-top: 1px;
+    }
+    .topbar-right {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: .75rem;
+    }
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: .4rem;
+      font-size: .78rem;
+      font-weight: 500;
+      padding: .3rem .7rem;
+      border-radius: 999px;
+      border: 1px solid var(--border2);
+      background: var(--bg);
+      color: var(--muted);
+      transition: all .3s;
+    }
+    .status-badge.connected { background: var(--green-bg); border-color: var(--green-mid); color: var(--green); }
+    .status-badge.error     { background: var(--red-bg); border-color: #fecaca; color: var(--red); }
+    .status-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+      flex-shrink: 0;
+    }
+    .status-badge.connected .status-dot { animation: pulse 2s ease infinite; }
+
+    /* ── Main grid ─────────────────────────────────────────────────────────── */
+    main {
+      flex: 1;
+      padding: 1.5rem;
+      display: grid;
+      grid-template-columns: 1fr 300px;
+      gap: 1.25rem;
+      max-width: 960px;
+      width: 100%;
+      margin: 0 auto;
+    }
+    @media (max-width: 680px) {
+      main { grid-template-columns: 1fr; }
+    }
+
+    /* ── Cards ─────────────────────────────────────────────────────────────── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.25rem;
+      box-shadow: var(--shadow);
+    }
+    .card-label {
+      font-size: .72rem;
+      font-weight: 600;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--faint);
+      margin-bottom: 1rem;
+    }
+
+    /* ── Bin visual ────────────────────────────────────────────────────────── */
+    .bin-display {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.25rem;
+      padding: .5rem 0;
+    }
+    .bin-wrap { position: relative; }
+    .bin-body {
+      width: 100px;
+      height: 150px;
+      border: 2px solid var(--border2);
+      border-top: none;
+      border-radius: 0 0 14px 14px;
+      overflow: hidden;
+      background: var(--bg);
+      position: relative;
+    }
+    .bin-lid {
+      position: absolute;
+      top: -13px;
+      left: -7px;
+      right: -7px;
+      height: 13px;
+      background: var(--border2);
+      border-radius: 6px 6px 0 0;
+    }
+    .bin-fill-bar {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      background: var(--green);
+      transition: height .6s cubic-bezier(.4,0,.2,1), background .3s;
+    }
+    .bin-fill-bar::after {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 4px;
+      background: rgba(255,255,255,.25);
+    }
+    .bin-pct {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      font-family: var(--mono);
+      font-size: 1.35rem;
+      font-weight: 500;
+      color: var(--text);
+      z-index: 1;
+    }
+
+    /* LEDs */
+    .led-strip {
+      display: flex;
+      gap: .9rem;
+      align-items: center;
+    }
+    .led-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: .35rem;
+    }
+    .led-item span {
+      font-size: .65rem;
+      font-weight: 600;
+      letter-spacing: .07em;
+      text-transform: uppercase;
+      color: var(--faint);
+    }
+    .led {
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      background: var(--border2);
+      transition: background .3s, box-shadow .3s;
+    }
+    .led.on-green  { background: var(--green);  box-shadow: 0 0 8px var(--green); }
+    .led.on-yellow { background: var(--yellow); box-shadow: 0 0 8px var(--yellow); }
+    .led.on-red    { background: var(--red);    box-shadow: 0 0 8px var(--red); }
+    .led.on-lamp   { background: #f59e0b;       box-shadow: 0 0 10px #f59e0b; }
+
+    /* ── Controls ──────────────────────────────────────────────────────────── */
+    .control-col { display: flex; flex-direction: column; gap: 1.25rem; }
+
+    .field-label {
+      font-size: .8rem;
+      font-weight: 600;
+      color: var(--muted);
+      margin-bottom: .5rem;
+      display: flex;
+      justify-content: space-between;
+    }
+    .field-label span { font-family: var(--mono); color: var(--text); font-weight: 500; }
+
+    input[type=range] {
+      width: 100%;
+      -webkit-appearance: none;
+      height: 5px;
+      background: var(--border2);
+      border-radius: 3px;
+      outline: none;
+      cursor: pointer;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 0 3px rgba(22,163,74,.15);
+      cursor: pointer;
+      transition: box-shadow .15s;
+    }
+    input[type=range]::-webkit-slider-thumb:hover {
+      box-shadow: 0 0 0 5px rgba(22,163,74,.2);
+    }
+
+    /* Toggle row */
+    .toggle-row { display: flex; gap: .5rem; }
+    .toggle-btn {
+      flex: 1;
+      padding: .55rem .5rem;
+      border: 1px solid var(--border2);
+      border-radius: 9px;
+      background: var(--bg);
+      color: var(--muted);
+      font-family: var(--sans);
+      font-size: .82rem;
+      font-weight: 500;
+      cursor: pointer;
+      text-align: center;
+      transition: all .15s;
+    }
+    .toggle-btn:hover { border-color: var(--green); color: var(--green); background: var(--green-bg); }
+    .toggle-btn.active { border-color: var(--green); background: var(--green-bg); color: var(--green); font-weight: 600; }
+
+    /* Action buttons */
+    .btn {
+      width: 100%;
+      padding: .75rem;
+      border-radius: 10px;
+      border: none;
+      font-family: var(--sans);
+      font-size: .875rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .btn:active { transform: scale(.98); }
+    .btn-primary { background: var(--green); color: #fff; }
+    .btn-primary:hover { background: #15803d; }
+    .btn-outline { background: transparent; border: 1px solid var(--border2); color: var(--muted); }
+    .btn-outline:hover { border-color: var(--green); color: var(--green); background: var(--green-bg); }
+    .btn-danger { background: transparent; border: 1px solid #fecaca; color: var(--red); }
+    .btn-danger:hover { background: var(--red-bg); }
+
+    /* Auto toggle */
+    .auto-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .auto-label { font-size: .875rem; color: var(--muted); font-weight: 500; }
+    .switch { position: relative; display: inline-block; width: 38px; height: 22px; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider-sw {
+      position: absolute; inset: 0;
+      background: var(--border2);
+      border-radius: 22px;
+      cursor: pointer;
+      transition: background .25s;
+    }
+    .slider-sw::before {
+      content: '';
+      position: absolute;
+      width: 16px; height: 16px;
+      left: 3px; top: 3px;
+      background: #fff;
+      border-radius: 50%;
+      transition: transform .25s;
+      box-shadow: 0 1px 3px rgba(0,0,0,.15);
+    }
+    input:checked + .slider-sw { background: var(--green); }
+    input:checked + .slider-sw::before { transform: translateX(16px); }
+
+    /* ── Event log ─────────────────────────────────────────────────────────── */
+    .log {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      max-height: 240px;
+      overflow-y: auto;
+    }
+    .log::-webkit-scrollbar { width: 4px; }
+    .log::-webkit-scrollbar-track { background: transparent; }
+    .log::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+    .log-row {
+      display: flex;
+      gap: .75rem;
+      align-items: baseline;
+      padding: .5rem 0;
+      border-bottom: 1px solid var(--border);
+      font-size: .8rem;
+      animation: fadeIn .25s ease;
+    }
+    .log-row:last-child { border-bottom: none; }
+    .log-time { color: var(--faint); font-family: var(--mono); flex-shrink: 0; font-size: .72rem; }
+    .log-tag {
+      flex-shrink: 0;
+      font-size: .68rem;
+      font-weight: 700;
+      letter-spacing: .05em;
+      padding: .15rem .45rem;
+      border-radius: 5px;
+    }
+    .tag-telemetry { background: #e0f2fe; color: #0284c7; }
+    .tag-full      { background: var(--red-bg); color: var(--red); }
+    .tag-reset     { background: var(--green-bg); color: var(--green); }
+    .tag-approach  { background: #eff6ff; color: var(--blue); }
+    .tag-system    { background: #f3f4f6; color: #6b7280; }
+    .log-msg { color: var(--muted); flex: 1; }
+    .log-empty { color: var(--faint); font-size: .85rem; padding: .75rem 0; text-align: center; }
+
+    /* ── Inputs ────────────────────────────────────────────────────────────── */
+    .text-input {
+      width: 100%;
+      border: 1px solid var(--border2);
+      border-radius: 9px;
+      padding: .65rem .85rem;
+      font-family: var(--mono);
+      font-size: .9rem;
+      color: var(--text);
+      background: var(--bg);
+      outline: none;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .text-input:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(22,163,74,.12); }
+    .error-msg { color: var(--red); font-size: .8rem; min-height: 1rem; }
+
+    /* ── Animations ────────────────────────────────────────────────────────── */
+    @keyframes fadeIn  { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes fadeUp  { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+    @keyframes pulse   { 0%,100% { opacity: 1; } 50% { opacity: .5; } }
+  </style>
+</head>
+<body>
+
+<!-- ── Gate ─────────────────────────────────────────────────────────────────── -->
+<div class="gate" id="gate">
+  <div class="gate-inner">
+    <div class="gate-icon">🗑</div>
+    <div>
+      <div class="gate-title">Demo Panel</div>
+      <div class="gate-sub">Smart Bin · BIN_001 · Hyderabad</div>
+    </div>
+    <div>
+      <div class="field-label" style="justify-content:flex-start;margin-bottom:.4rem;">Passcode</div>
+      <input id="gate-input" type="password" class="text-input" placeholder="Enter passcode" />
+      <div class="error-msg" id="gate-error"></div>
+    </div>
+    <button class="btn btn-primary" onclick="unlockPanel()">Enter Panel</button>
+  </div>
+</div>
+
+<!-- ── App ──────────────────────────────────────────────────────────────────── -->
+<div class="app" id="app">
+
+  <header class="topbar">
+    <div class="topbar-icon">🗑</div>
+    <div>
+      <div class="topbar-title">Smart Bin Demo Panel</div>
+      <div class="topbar-sub">BIN_001 · Demo Bin · Hyderabad</div>
+    </div>
+    <div class="topbar-right">
+      <div class="status-badge" id="status-badge">
+        <div class="status-dot"></div>
+        <span id="status-text">Connecting</span>
+      </div>
+    </div>
+  </header>
+
+  <main>
+
+    <!-- Left column: bin visual + log -->
+    <div style="display:flex;flex-direction:column;gap:1.25rem;">
+
+      <div class="card">
+        <div class="card-label">Bin Status</div>
+        <div class="bin-display">
+          <div class="bin-wrap">
+            <div class="bin-body" id="bin-body">
+              <div class="bin-lid"></div>
+              <div class="bin-fill-bar" id="fill-bar" style="height:30%;"></div>
+              <div class="bin-pct" id="pct-label">30%</div>
+            </div>
+          </div>
+          <div class="led-strip">
+            <div class="led-item"><div class="led" id="led-green"></div><span>Empty</span></div>
+            <div class="led-item"><div class="led" id="led-yellow"></div><span>Half</span></div>
+            <div class="led-item"><div class="led" id="led-red"></div><span>Full</span></div>
+            <div class="led-item" style="margin-left:.5rem;">
+              <div class="led" id="led-lamp"></div><span>Lamp</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-label">Event Log</div>
+        <div class="log" id="log">
+          <div class="log-empty">No events yet</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Right column: controls -->
+    <div class="control-col">
+
+      <div class="card">
+        <div class="card-label">Fill Level</div>
+        <div class="field-label">Garbage level <span id="fill-val">30</span>%</div>
+        <input type="range" id="fill-slider" min="0" max="100" value="30" />
+      </div>
+
+      <div class="card">
+        <div class="card-label">Sensors</div>
+
+        <div class="field-label" style="margin-bottom:.5rem;">
+          Ambient light (LDR) <span id="ldr-val">2000</span>
+        </div>
+        <input type="range" id="ldr-slider" min="0" max="4095" value="2000" style="margin-bottom:1rem;" />
+        <div style="display:flex;justify-content:space-between;font-size:.75rem;color:var(--faint);margin-top:-.75rem;margin-bottom:1.25rem;">
+          <span>Dark</span><span>Bright</span>
+        </div>
+
+        <div class="field-label" style="margin-bottom:.5rem;">IR Sensor</div>
+        <div class="toggle-row">
+          <button class="toggle-btn" id="ir-off" onclick="setIR(false)">No object</button>
+          <button class="toggle-btn" id="ir-on"  onclick="setIR(true)">Detected</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-label">Events</div>
+        <div style="display:flex;flex-direction:column;gap:.6rem;">
+          <button class="btn btn-outline" onclick="fireEvent('APPROACH')">👤 Approach</button>
+          <button class="btn btn-danger"  onclick="fireEvent('RESET')">✅ Cleaner Reset</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-label">Publish</div>
+        <div class="auto-row" style="margin-bottom:1rem;">
+          <span class="auto-label">Auto-publish (10s)</span>
+          <label class="switch">
+            <input type="checkbox" id="auto-toggle" checked onchange="toggleAuto(this.checked)" />
+            <span class="slider-sw"></span>
+          </label>
+        </div>
+        <button class="btn btn-primary" onclick="publishTelemetry()">Publish Now</button>
+      </div>
+
+    </div>
+  </main>
+
+</div>
+
+<script>
+  // ── Config ──────────────────────────────────────────────────────────────────
+  const BIN_ID        = 'BIN_001';
+  const WS_URL        = `ws://${location.hostname}:9001`;
+  const PANEL_PASSCODE = 'password';
+
+  const topicTel = `city/bins/${BIN_ID}/telemetry`;
+  const topicEvt = `city/bins/${BIN_ID}/events`;
+  const topicCmd = `city/bins/${BIN_ID}/cmd`;
+
+  // ── State ───────────────────────────────────────────────────────────────────
+  let fillPct   = 30;
+  let ldrRaw    = 2000;
+  let irOn      = false;
+  let autoTimer = null;
+  let client    = null;
+
+  // ── DOM refs ─────────────────────────────────────────────────────────────────
+  const fillBar    = document.getElementById('fill-bar');
+  const pctLabel   = document.getElementById('pct-label');
+  const fillSlider = document.getElementById('fill-slider');
+  const ldrSlider  = document.getElementById('ldr-slider');
+  const ldrValEl   = document.getElementById('ldr-val');
+  const fillValEl  = document.getElementById('fill-val');
+  const ledGreen   = document.getElementById('led-green');
+  const ledYellow  = document.getElementById('led-yellow');
+  const ledRed     = document.getElementById('led-red');
+  const ledLamp    = document.getElementById('led-lamp');
+  const logEl      = document.getElementById('log');
+  const badge      = document.getElementById('status-badge');
+  const statusText = document.getElementById('status-text');
+
+  // ── Gate ────────────────────────────────────────────────────────────────────
+  function unlockPanel() {
+    const val = document.getElementById('gate-input').value;
+    if (val !== PANEL_PASSCODE) {
+      document.getElementById('gate-error').textContent = 'Incorrect passcode';
+      return;
+    }
+    document.getElementById('gate').style.display = 'none';
+    document.getElementById('app').classList.add('visible');
+    connect();
+    updateVisual();
+    toggleAuto(true);
+  }
+  document.getElementById('gate-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') unlockPanel();
+  });
+
+  // ── MQTT ────────────────────────────────────────────────────────────────────
+  function connect() {
+    client = mqtt.connect(WS_URL, {
+      clientId: 'mockpanel_' + Math.random().toString(16).slice(2),
+    });
+
+    client.on('connect', () => {
+      badge.className = 'status-badge connected';
+      statusText.textContent = 'Connected';
+      client.subscribe(topicCmd);
+      addLog('system', 'Connected to MQTT broker');
+    });
+
+    client.on('error', err => {
+      badge.className = 'status-badge error';
+      statusText.textContent = 'Error';
+      addLog('system', err.message || 'MQTT error');
+    });
+
+    client.on('close', () => {
+      badge.className = 'status-badge';
+      statusText.textContent = 'Disconnected';
+    });
+
+    client.on('message', (topic, payload) => {
+      if (topic !== topicCmd) return;
+      const msg = payload.toString();
+      if (msg === 'RESET') {
+        fillPct = 0;
+        fillSlider.value = 0;
+        updateVisual();
+        addLog('reset', 'Remote RESET received from worker console');
+        fireEvent('RESET', true);
+        publishTelemetry();
+      }
+    });
+  }
+
+  // ── Publish ──────────────────────────────────────────────────────────────────
+  function publishTelemetry() {
+    if (!client?.connected) { addLog('system', 'Not connected'); return; }
+    const lampOn = ldrRaw < 1500;
+    const payload = JSON.stringify({
+      bin_id: BIN_ID, fill_pct: fillPct, ir_triggered: irOn,
+      ldr_raw: ldrRaw, lamp_on: lampOn, awaiting_reset: fillPct >= 80,
+    });
+    client.publish(topicTel, payload, { retain: true });
+    addLog('telemetry', `fill=${fillPct}% ldr=${ldrRaw} lamp=${lampOn ? 'ON' : 'OFF'}`);
+    if (fillPct >= 80) fireEvent('FULL', true);
+  }
+
+  function fireEvent(type, silent = false) {
+    if (!client?.connected) { addLog('system', 'Not connected'); return; }
+    client.publish(topicEvt, JSON.stringify({
+      bin_id: BIN_ID, event: type, timestamp: Math.floor(Date.now() / 1000),
+    }));
+    if (!silent) addLog(type.toLowerCase(), `Event fired: ${type}`);
+    if (type === 'RESET') { fillPct = 0; fillSlider.value = 0; updateVisual(); }
+  }
+
+  // ── Visual ───────────────────────────────────────────────────────────────────
+  function updateVisual() {
+    fillBar.style.height  = fillPct + '%';
+    pctLabel.textContent  = fillPct + '%';
+    fillValEl.textContent = fillPct;
+
+    const lampOn = ldrRaw < 1500;
+    const color  = fillPct >= 80 ? 'var(--red)' : fillPct >= 40 ? 'var(--yellow)' : 'var(--green)';
+    fillBar.style.background = color;
+
+    ledGreen.className  = 'led' + (fillPct <  40 ? ' on-green'  : '');
+    ledYellow.className = 'led' + (fillPct >= 40 && fillPct < 80 ? ' on-yellow' : '');
+    ledRed.className    = 'led' + (fillPct >= 80 ? ' on-red'    : '');
+    ledLamp.className   = 'led' + (lampOn         ? ' on-lamp'  : '');
+  }
+
+  function setIR(state) {
+    irOn = state;
+    document.getElementById('ir-on').className  = 'toggle-btn' + ( state ? ' active' : '');
+    document.getElementById('ir-off').className = 'toggle-btn' + (!state ? ' active' : '');
+  }
+
+  function toggleAuto(on) {
+    clearInterval(autoTimer);
+    if (on) autoTimer = setInterval(publishTelemetry, 10000);
+  }
+
+  function addLog(type, msg) {
+    const empty = logEl.querySelector('.log-empty');
+    if (empty) empty.remove();
+
+    const tagClass = { telemetry:'tag-telemetry', full:'tag-full', reset:'tag-reset', approach:'tag-approach', system:'tag-system' }[type] || 'tag-system';
+    const time = new Date().toLocaleTimeString('en-GB', { hour12: false });
+    const row  = document.createElement('div');
+    row.className = 'log-row';
+    row.innerHTML = `<span class="log-time">${time}</span><span class="log-tag ${tagClass}">${type.toUpperCase()}</span><span class="log-msg">${msg}</span>`;
+    logEl.prepend(row);
+    while (logEl.children.length > 50) logEl.removeChild(logEl.lastChild);
+  }
+
+  // ── Listeners ─────────────────────────────────────────────────────────────
+  fillSlider.addEventListener('input', () => { fillPct = parseInt(fillSlider.value); updateVisual(); });
+  ldrSlider.addEventListener('input',  () => { ldrRaw  = parseInt(ldrSlider.value);  ldrValEl.textContent = ldrRaw; updateVisual(); });
+
+  // ── Init ───────────────────────────────────────────────────────────────────
+  setIR(false);
+</script>
+</body>
+</html>

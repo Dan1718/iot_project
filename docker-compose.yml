@@ -1,0 +1,146 @@
+version: "3.8"
+
+services:
+
+  # ── MQTT Broker ─────────────────────────────────────────────────────────────
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: smartcity_mosquitto
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+      - "9001:9001"     # WebSocket for browser clients
+    volumes:
+      - ./mosquitto/config:/mosquitto/config
+      - ./mosquitto/data:/mosquitto/data
+      - ./mosquitto/log:/mosquitto/log
+
+  # ── Time-series Database ─────────────────────────────────────────────────────
+  influxdb:
+    image: influxdb:2.7
+    container_name: smartcity_influxdb
+    restart: unless-stopped
+    ports:
+      - "8086:8086"
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: admin
+      DOCKER_INFLUXDB_INIT_PASSWORD: adminpassword
+      DOCKER_INFLUXDB_INIT_ORG: smartcity
+      DOCKER_INFLUXDB_INIT_BUCKET: waste_monitoring
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: smartcity-super-secret-token
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+
+  # ── FastAPI Backend ──────────────────────────────────────────────────────────
+  backend:
+    build: ./backend
+    container_name: smartcity_backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file: .env
+    environment:
+      MQTT_BROKER: mosquitto        # use container name inside Docker network
+      INFLUXDB_URL: http://influxdb:8086
+    depends_on:
+      - mosquitto
+      - influxdb
+
+  # ── Historical Backfill (runs once, then exits) ──────────────────────────────
+  backfill:
+    build: ./simulator
+    container_name: smartcity_backfill
+    restart: "no"
+    env_file: .env
+    environment:
+      INFLUXDB_URL: http://influxdb:8086
+    command: python backfill.py
+    depends_on:
+      - influxdb
+
+  # ── City Simulator ───────────────────────────────────────────────────────────
+  simulator:
+    build: ./simulator
+    container_name: smartcity_simulator
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      MQTT_BROKER: mosquitto
+    depends_on:
+      - mosquitto
+      - backfill
+
+  # ── Worker Console (React) ───────────────────────────────────────────────────
+  worker-console:
+    build: ./worker-console
+    container_name: smartcity_worker_console
+    restart: unless-stopped
+    ports:
+      - "8081:80"
+    depends_on:
+      - backend
+      - mosquitto
+
+  # ── Mock Control Panel ───────────────────────────────────────────────────────
+  mockpanel:
+    image: nginx:alpine
+    container_name: smartcity_mockpanel
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    volumes:
+      - ./mockpanel:/usr/share/nginx/html:ro
+
+  # ── Grafana Dashboard ────────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:10.4.2
+    container_name: smartcity_grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_INSTALL_PLUGINS: grafana-worldmap-panel,grafana-piechart-panel
+      GF_SERVER_DOMAIN: iot.dan1718.dev
+      GF_SERVER_ROOT_URL: https://iot.dan1718.dev/
+      GF_SERVER_SERVE_FROM_SUB_PATH: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+    depends_on:
+      - influxdb
+
+  # ── Nginx reverse proxy ──────────────────────────────────────────────────────
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: smartcity_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/certbot/conf:/etc/letsencrypt:ro
+      - ./nginx/certbot/www:/var/www/certbot:ro
+    depends_on:
+      - grafana
+      - backend
+      - worker-console
+      - mockpanel
+      - mosquitto
+
+  # ── Certbot (SSL cert renewal) ────────────────────────────────────────────────
+  certbot:
+    image: certbot/certbot
+    container_name: smartcity_certbot
+    restart: unless-stopped
+    volumes:
+      - ./nginx/certbot/conf:/etc/letsencrypt
+      - ./nginx/certbot/www:/var/www/certbot
+    entrypoint: /bin/sh -c "trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done"
+
+volumes:
+  influxdb_data:
+  grafana_data:

@@ -1,0 +1,256 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: SmartCity Waste Alerts
+    folder: Smart City Waste
+    interval: 10s
+    rules:
+
+      # ── Rule 0: Demo Bin Full (fires within 10s) ──────────────────────────────
+      - uid: alert-demo-bin-full
+        title: DemoBinFull
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 60, to: 0 }
+            datasourceUid: P951FEA4DE68E13C5
+            model:
+              query: |
+                from(bucket: "waste_monitoring")
+                  |> range(start: -30s)
+                  |> filter(fn: (r) => r._measurement == "bin_telemetry" and r._field == "fill_pct" and r.bin_id == "BIN_001")
+                  |> last()
+                  |> filter(fn: (r) => r._value >= 80)
+                  |> count()
+              intervalMs: 10000
+              maxDataPoints: 1
+
+          - refId: C
+            relativeTimeRange: { from: 60, to: 0 }
+            datasourceUid: "__expr__"
+            model:
+              refId: C
+              type: math
+              expression: "$A > 0"
+
+        noDataState: OK
+        execErrState: OK
+        for: 0s
+        labels:
+          severity: critical
+          category: bin_full
+          bin_id: BIN_001
+        annotations:
+          summary: "Demo Bin (BIN_001) is FULL"
+          description: "The physical demo bin has reached 80%+ fill. Press reset to clear."
+
+      # ── Rule 1: Demo Bin — no collection within 1 minute of FULL ─────────────
+      - uid: alert-demo-no-collection
+        title: DemoBinNoCollection
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 120, to: 0 }
+            datasourceUid: P951FEA4DE68E13C5
+            model:
+              query: |
+                from(bucket: "waste_monitoring")
+                  |> range(start: -1m)
+                  |> filter(fn: (r) => r._measurement == "bin_telemetry" and r._field == "fill_pct" and r.bin_id == "BIN_001")
+                  |> last()
+                  |> filter(fn: (r) => r._value >= 80)
+                  |> count()
+              intervalMs: 10000
+              maxDataPoints: 1
+
+          - refId: C
+            relativeTimeRange: { from: 120, to: 0 }
+            datasourceUid: "__expr__"
+            model:
+              refId: C
+              type: math
+              expression: "$A > 0"
+
+        noDataState: OK
+        execErrState: OK
+        for: 1m
+        labels:
+          severity: critical
+          category: no_collection
+          bin_id: BIN_001
+        annotations:
+          summary: "Demo Bin full for 1+ minute — not collected"
+          description: "BIN_001 has been at 80%+ for over 1 minute. Trigger a reset on the mock panel."
+
+      # ── Rule 2: Simulated bins full > 15 minutes ──────────────────────────────
+      - uid: alert-bin-full-no-collection
+        title: BinFullNoCollection
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 1800, to: 0 }
+            datasourceUid: P951FEA4DE68E13C5
+            model:
+              query: |
+                from(bucket: "waste_monitoring")
+                  |> range(start: -15m)
+                  |> filter(fn: (r) => r._measurement == "bin_telemetry" and r._field == "fill_pct" and r.bin_id != "BIN_001")
+                  |> group(columns: ["bin_id", "zone"])
+                  |> min()
+                  |> filter(fn: (r) => r._value >= 80)
+                  |> group()
+                  |> count()
+              intervalMs: 60000
+              maxDataPoints: 43200
+
+          - refId: C
+            relativeTimeRange: { from: 1800, to: 0 }
+            datasourceUid: "__expr__"
+            model:
+              refId: C
+              type: math
+              expression: "$A > 0"
+
+        noDataState: OK
+        execErrState: OK
+        for: 0s
+        labels:
+          severity: warning
+          category: bin_full
+        annotations:
+          summary: "Bin(s) full for 15+ minutes without collection"
+          description: "One or more simulated bins have been at 80%+ for over 15 minutes."
+
+      # ── Rule 3: Zone Overload — 3+ bins full simultaneously ──────────────────
+      - uid: alert-zone-overload
+        title: ZoneOverload
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: P951FEA4DE68E13C5
+            model:
+              query: |
+                from(bucket: "waste_monitoring")
+                  |> range(start: -10m)
+                  |> filter(fn: (r) => r._measurement == "bin_telemetry" and r._field == "fill_pct")
+                  |> group(columns: ["zone", "bin_id"])
+                  |> last()
+                  |> filter(fn: (r) => r._value >= 80)
+                  |> group(columns: ["zone"])
+                  |> count()
+                  |> filter(fn: (r) => r._value >= 3)
+                  |> group()
+                  |> count()
+              intervalMs: 60000
+              maxDataPoints: 43200
+
+          - refId: C
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: "__expr__"
+            model:
+              refId: C
+              type: math
+              expression: "$A > 0"
+
+        noDataState: OK
+        execErrState: OK
+        for: 0s
+        labels:
+          severity: critical
+          category: zone_overload
+        annotations:
+          summary: "Zone overload — 3+ bins full simultaneously"
+          description: "A zone has 3 or more full bins at the same time."
+
+      # ── Rule 4: City-wide Average Fill > 60% ─────────────────────────────────
+      - uid: alert-high-fill-spike
+        title: CityFillSpike
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: P951FEA4DE68E13C5
+            model:
+              query: |
+                from(bucket: "waste_monitoring")
+                  |> range(start: -10m)
+                  |> filter(fn: (r) => r._measurement == "bin_telemetry" and r._field == "fill_pct")
+                  |> group(columns: ["bin_id"])
+                  |> last()
+                  |> group()
+                  |> mean()
+              intervalMs: 60000
+              maxDataPoints: 43200
+
+          - refId: C
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: "__expr__"
+            model:
+              refId: C
+              type: math
+              expression: "$A > 60"
+
+        noDataState: OK
+        execErrState: OK
+        for: 5m
+        labels:
+          severity: warning
+          category: fill_spike
+        annotations:
+          summary: "City-wide average fill level above 60%"
+          description: "Average fill across all bins has exceeded 60% for 5+ minutes."
+
+      # ── Rule 5: Zone with no collections in 24 hours ─────────────────────────
+      - uid: alert-no-collections-zone
+        title: NoCollectionsInZone
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 86400, to: 0 }
+            datasourceUid: P951FEA4DE68E13C5
+            model:
+              query: |
+                zonesActive = from(bucket: "waste_monitoring")
+                  |> range(start: -24h)
+                  |> filter(fn: (r) => r._measurement == "bin_telemetry" and r._field == "fill_pct" and r.bin_id != "BIN_001")
+                  |> group(columns: ["zone"])
+                  |> count()
+                  |> map(fn: (r) => ({zone: r.zone, kind: "active", n: r._value}))
+                  |> group()
+
+                zonesCollected = from(bucket: "waste_monitoring")
+                  |> range(start: -24h)
+                  |> filter(fn: (r) => r._measurement == "bin_events" and r._field == "value" and r.event_type == "RESET" and r.bin_id != "BIN_001")
+                  |> group(columns: ["zone"])
+                  |> count()
+                  |> map(fn: (r) => ({zone: r.zone, kind: "collected", n: r._value}))
+                  |> group()
+
+                union(tables: [zonesActive, zonesCollected])
+                  |> group(columns: ["zone", "kind"])
+                  |> sum(column: "n")
+                  |> pivot(rowKey: ["zone"], columnKey: ["kind"], valueColumn: "n")
+                  |> filter(fn: (r) => not exists r.collected or r.collected == 0)
+                  |> count(column: "zone")
+              intervalMs: 300000
+              maxDataPoints: 43200
+
+          - refId: C
+            relativeTimeRange: { from: 86400, to: 0 }
+            datasourceUid: "__expr__"
+            model:
+              refId: C
+              type: math
+              expression: "$A > 0"
+
+        noDataState: OK
+        execErrState: OK
+        for: 0s
+        labels:
+          severity: critical
+          category: no_collection
+        annotations:
+          summary: "Zone with no collections in 24 hours"
+          description: "One or more zones have had zero RESET events in the last 24 hours."

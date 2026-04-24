@@ -1,0 +1,452 @@
+{
+  "title": "Smart City Waste Monitoring — Hyderabad",
+  "uid": "smartcity-waste-v1",
+  "schemaVersion": 39,
+  "version": 3,
+  "refresh": "10s",
+  "time": { "from": "now-30d", "to": "now" },
+  "tags": ["iot", "waste", "hyderabad"],
+  "panels": [
+
+    {
+      "id": 1,
+      "title": "City-wide Average Fill Level",
+      "type": "gauge",
+      "gridPos": { "x": 0, "y": 0, "w": 4, "h": 6 },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0, "max": 100, "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green",  "value": null },
+              { "color": "yellow", "value": 40 },
+              { "color": "red",    "value": 80 }
+            ]
+          }
+        }
+      },
+      "targets": [{
+        "datasource": { "type": "influxdb", "uid": "InfluxDB" },
+        "query": "from(bucket: \"waste_monitoring\")\n  |> range(start: -10m)\n  |> filter(fn: (r) => r._measurement == \"bin_telemetry\" and r._field == \"fill_pct\")\n  |> group(columns: [\"bin_id\"])\n  |> last()\n  |> group()\n  |> mean()\n  |> yield(name: \"city_avg\")",
+        "refId": "A"
+      }]
+    },
+
+    {
+      "id": 2,
+      "title": "Bins Awaiting Collection",
+      "type": "stat",
+      "gridPos": { "x": 4, "y": 0, "w": 4, "h": 6 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green",  "value": null },
+              { "color": "yellow", "value": 10 },
+              { "color": "red",    "value": 25 }
+            ]
+          }
+        }
+      },
+      "targets": [{
+        "datasource": { "type": "influxdb", "uid": "InfluxDB" },
+        "query": "from(bucket: \"waste_monitoring\")\n  |> range(start: -10m)\n  |> filter(fn: (r) => r._measurement == \"bin_telemetry\" and r._field == \"fill_pct\")\n  |> group(columns: [\"bin_id\"])\n  |> last()\n  |> filter(fn: (r) => r._value >= 80)\n  |> group()\n  |> count()\n  |> yield(name: \"full_bins\")",
+        "refId": "A"
+      }]
+    },
+
+    {
+      "id": 3,
+      "title": "Approach Events (last 24h)",
+      "type": "stat",
+      "gridPos": { "x": 8, "y": 0, "w": 4, "h": 6 },
+      "fieldConfig": {
+        "defaults": { "unit": "short" }
+      },
+      "targets": [{
+        "datasource": { "type": "influxdb", "uid": "InfluxDB" },
+        "query": "from(bucket: \"waste_monitoring\")\n  |> range(start: -24h)\n  |> filter(fn: (r) => r._measurement == \"bin_events\" and r._field == \"value\" and r.event_type == \"APPROACH\")\n  |> group()\n  |> sum()\n  |> yield(name: \"approaches\")",
+        "refId": "A"
+      }]
+    },
+
+    {
+      "id": 4,
+      "title": "Collections Today (RESET events)",
+      "type": "stat",
+      "gridPos": { "x": 12, "y": 0, "w": 4, "h": 6 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] }
+        }
+      },
+      "targets": [{
+        "datasource": { "type": "influxdb", "uid": "InfluxDB" },
+        "query": "from(bucket: \"waste_monitoring\")\n  |> range(start: -24h)\n  |> filter(fn: (r) => r._measurement == \"bin_events\" and r._field == \"value\" and r.event_type == \"RESET\")\n  |> group()\n  |> sum()\n  |> yield(name: \"collections\")",
+        "refId": "A"
+      }]
+    },
+
+    {
+      "id": 5,
+      "title": "Street Lamps On Right Now",
+      "type": "stat",
+      "gridPos": { "x": 16, "y": 0, "w": 4, "h": 6 },
+      "fieldConfig": {
+        "defaults": { "unit": "short" }
+      },
+      "targets": [{
+        "datasource": { "type": "influxdb", "uid": "InfluxDB" },
+        "query": "from(bucket: \"waste_monitoring\")\n  |> range(start: -10m)\n  |> filter(fn: (r) => r._measurement == \"bin_telemetry\" and r._field == \"lamp_on\")\n  |> group(columns: [\"bin_id\"])\n  |> last()\n  |> filter(fn: (r) => r._value == true)\n  |> group()\n  |> count()\n  |> yield(name: \"lamps_on\")",
+        "refId": "A"
+      }]
+    },
+
+    {
+      "id": 11,
+      "title": "FULL Events Today",
+      "type": "stat",
+      "gridPos": { "x": 20, "y": 0, "w": 4, "h": 6 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "orange", "value": 20 },
+            { "color": "red", "value": 50 }
+          ]}
+        }
+      },
+      "targets": [{
+        "datasource": { "type": "influxdb", "uid": "InfluxDB" },
+        "query": "from(bucket: \"waste_monitoring\")\n  |> range(start: -24h)\n  |> filter(fn: (r) => r._measurement == \"bin_events\" and r._field == \"value\" and r.event_type == \"FULL\")\n  |> group()\n  |> sum()\n  |> yield(name: \"full_events\")",
+        "refId": "A"
+      }]
+    },
+
+    {
+      "id": 6,
+      "title": "Average Fill Level by Zone",
+      "type": "table",
+      "gridPos": { "x": 0, "y": 6, "w": 12, "h": 9 },
+      "fieldConfig": {
+        "defaults": { "unit": "short" },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Zone" },
+            "properties": [{ "id": "custom.width", "value": 160 }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Fill %" },
+            "properties": [
+              { "id": "unit", "value": "percent" },
+              { "id": "min", "value": 0 },
+              { "id": "max", "value": 100 },
+              { "id": "custom.displayMode", "value": "gradient-gauge" },
+              { "id": "thresholds", "value": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green",  "value": null },
+                  { "color": "yellow", "value": 40 },
+                  { "color": "red",    "value": 80 }
+                ]
+              }}
+            ]
+          }
+        ]
+      },
+      "options": {
+        "sortBy": [{ "displayName": "Fill %", "desc": true }],
+        "footer": { "show": false }
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": { "zone": "Zone", "_value": "Fill %" },
+            "excludeByName": { "_start": true, "_stop": true, "_time": true, "_measurement": true, "_field": true, "result": true, "table": true }
+          }
+        }
+      ],
+      "targets": [{
+        "datasource": { "type": "influxdb", "uid": "InfluxDB" },
+        "query": "from(bucket: \"waste_monitoring\")\n  |> range(start: -30m)\n  |> filter(fn: (r) => r._measurement == \"bin_telemetry\" and r._field == \"fill_pct\")\n  |> filter(fn: (r) => r.zone =~ /^${zone:regex}$/)\n  |> filter(fn: (r) => r.zone !~ /^HYD_/ and r.zone != \"BIN_001\")\n  |> group(columns: [\"zone\", \"bin_id\"])\n  |> last()\n  |> group(columns: [\"zone\"])\n  |> mean()\n  |> group()\n  |> sort(columns: [\"_value\"], desc: true)\n  |> keep(columns: [\"zone\", \"_value\"])\n  |> yield(name: \"zone_avg\")",
+        "refId": "A"
+      }]
+    },
+
+    {
+      "id": 7,
+      "title": "Fill Level Over Time — Avg per Zone",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 6, "w": 12, "h": 9 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent", "min": 0, "max": 100,
+          "custom": { "lineWidth": 2, "fillOpacity": 8 }
+        }
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "multi" }
+      },
+      "targets": [{
+        "datasource": { "type": "influxdb", "uid": "InfluxDB" },
+        "query": "from(bucket: \"waste_monitoring\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"bin_telemetry\" and r._field == \"fill_pct\")\n  |> filter(fn: (r) => r.zone =~ /^${zone:regex}$/)\n  |> filter(fn: (r) => r.zone !~ /^HYD_/ and r.zone != \"BIN_001\")\n  |> group(columns: [\"zone\"])\n  |> aggregateWindow(every: 30m, fn: mean, createEmpty: false)\n  |> yield(name: \"fill_by_zone\")",
+        "refId": "A"
+      }]
+    },
+
+    {
+      "id": 8,
+      "title": "Event Timeline — FULL / APPROACH / RESET (per hour)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 15, "w": 24, "h": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "bars", "fillOpacity": 70, "lineWidth": 0, "barAlignment": 0 },
+          "unit": "short"
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "FULL" },
+            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }] },
+          { "matcher": { "id": "byName", "options": "APPROACH" },
+            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "#5794F2" } }] },
+          { "matcher": { "id": "byName", "options": "RESET" },
+            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } }] }
+        ]
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [{
+        "datasource": { "type": "influxdb", "uid": "InfluxDB" },
+        "query": "from(bucket: \"waste_monitoring\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"bin_events\" and r._field == \"value\")\n  |> group(columns: [\"event_type\"])\n  |> aggregateWindow(every: 1h, fn: sum, createEmpty: false)\n  |> map(fn: (r) => ({ r with _field: r.event_type }))\n  |> group()\n  |> yield(name: \"events\")",
+        "refId": "A"
+      }]
+    },
+
+    {
+      "id": 9,
+      "title": "Top 10 Bins by Current Fill Level",
+      "type": "table",
+      "gridPos": { "x": 0, "y": 23, "w": 12, "h": 8 },
+      "fieldConfig": {
+        "defaults": { "unit": "short" },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "_value" },
+            "properties": [
+              { "id": "displayName", "value": "Fill %" },
+              { "id": "unit", "value": "percent" },
+              { "id": "custom.width", "value": 120 },
+              { "id": "thresholds", "value": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green",  "value": null },
+                  { "color": "yellow", "value": 40 },
+                  { "color": "red",    "value": 80 }
+                ]
+              }},
+              { "id": "custom.displayMode", "value": "color-background" }
+            ]
+          },
+          { "matcher": { "id": "byName", "options": "bin_id" },
+            "properties": [{ "id": "displayName", "value": "Bin ID" }, { "id": "custom.width", "value": 100 }]
+          },
+          { "matcher": { "id": "byName", "options": "zone" },
+            "properties": [{ "id": "displayName", "value": "Zone" }]
+          }
+        ]
+      },
+      "options": { "sortBy": [{ "displayName": "Fill %", "desc": true }] },
+      "targets": [{
+        "datasource": { "type": "influxdb", "uid": "InfluxDB" },
+        "query": "from(bucket: \"waste_monitoring\")\n  |> range(start: -30m)\n  |> filter(fn: (r) => r._measurement == \"bin_telemetry\" and r._field == \"fill_pct\")\n  |> filter(fn: (r) => r.zone =~ /^${zone:regex}$/)\n  |> filter(fn: (r) => r.zone !~ /^HYD_/ and r.zone != \"BIN_001\")\n  |> group(columns: [\"bin_id\", \"zone\"])\n  |> last()\n  |> group()\n  |> sort(columns: [\"_value\"], desc: true)\n  |> limit(n: 10)\n  |> keep(columns: [\"bin_id\", \"zone\", \"_value\"])\n  |> yield(name: \"top10\")",
+        "refId": "A"
+      }]
+    },
+
+    {
+      "id": 10,
+      "title": "Collections by Zone (last 7 days)",
+      "type": "barchart",
+      "gridPos": { "x": 12, "y": 23, "w": 12, "h": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "fillOpacity": 80, "barRadius": 0.05 }
+        }
+      },
+      "options": { "orientation": "horizontal", "legend": { "displayMode": "hidden" } },
+      "targets": [{
+        "datasource": { "type": "influxdb", "uid": "InfluxDB" },
+        "query": "from(bucket: \"waste_monitoring\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"bin_events\" and r._field == \"value\" and r.event_type == \"RESET\")\n  |> filter(fn: (r) => r.zone =~ /^${zone:regex}$/)\n  |> filter(fn: (r) => r.zone !~ /^HYD_/ and r.zone != \"BIN_001\")\n  |> group(columns: [\"zone\"])\n  |> sum()\n  |> group()\n  |> sort(columns: [\"_value\"], desc: true)\n  |> yield(name: \"resets_by_zone\")",
+        "refId": "A"
+      }]
+    },
+
+    {
+      "id": 20,
+      "title": "── Physical Bin Monitor (ESP32) ──",
+      "type": "row",
+      "gridPos": { "x": 0, "y": 31, "w": 24, "h": 1 },
+      "collapsed": false
+    },
+
+    {
+      "id": 21,
+      "title": "Physical Bin — Fill Level",
+      "type": "gauge",
+      "gridPos": { "x": 0, "y": 32, "w": 6, "h": 7 },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0, "max": 100, "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green",  "value": null },
+              { "color": "yellow", "value": 40 },
+              { "color": "red",    "value": 80 }
+            ]
+          }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "values": true, "limit": 1 }, "showThresholdLabels": true, "showThresholdMarkers": true },
+      "targets": [{
+        "datasource": { "type": "influxdb", "uid": "InfluxDB" },
+        "query": "from(bucket: \"waste_monitoring\")\n  |> range(start: -2m)\n  |> filter(fn: (r) => r._measurement == \"bin_telemetry\" and r._field == \"fill_pct\" and r.bin_id == \"BIN_001\")\n  |> last()\n  |> yield(name: \"physical_fill\")",
+        "refId": "A"
+      }]
+    },
+
+    {
+      "id": 22,
+      "title": "Physical Bin — Street Lamp",
+      "type": "stat",
+      "gridPos": { "x": 6, "y": 32, "w": 3, "h": 7 },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "true":  { "text": "ON",  "color": "yellow", "index": 0 } } },
+            { "type": "value", "options": { "false": { "text": "OFF", "color": "blue",   "index": 1 } } }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "values": true, "limit": 1 }, "textMode": "value", "colorMode": "background" },
+      "targets": [{
+        "datasource": { "type": "influxdb", "uid": "InfluxDB" },
+        "query": "from(bucket: \"waste_monitoring\")\n  |> range(start: -2m)\n  |> filter(fn: (r) => r._measurement == \"bin_telemetry\" and r._field == \"lamp_on\" and r.bin_id == \"BIN_001\")\n  |> last()\n  |> yield(name: \"lamp\")",
+        "refId": "A"
+      }]
+    },
+
+    {
+      "id": 23,
+      "title": "Physical Bin — LDR (Ambient Light)",
+      "type": "stat",
+      "gridPos": { "x": 9, "y": 32, "w": 3, "h": 7 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "blue",   "value": null },
+              { "color": "yellow", "value": 1500 },
+              { "color": "orange", "value": 3000 }
+            ]
+          }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "values": true, "limit": 1 }, "colorMode": "value", "graphMode": "area" },
+      "targets": [{
+        "datasource": { "type": "influxdb", "uid": "InfluxDB" },
+        "query": "from(bucket: \"waste_monitoring\")\n  |> range(start: -2m)\n  |> filter(fn: (r) => r._measurement == \"bin_telemetry\" and r._field == \"ldr_raw\" and r.bin_id == \"BIN_001\")\n  |> last()\n  |> yield(name: \"ldr\")",
+        "refId": "A"
+      }]
+    },
+
+    {
+      "id": 24,
+      "title": "Physical Bin — Fill Over Time",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 32, "w": 12, "h": 7 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent", "min": 0, "max": 100,
+          "custom": { "lineWidth": 2, "fillOpacity": 20 },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green",  "value": null },
+              { "color": "yellow", "value": 40 },
+              { "color": "red",    "value": 80 }
+            ]
+          },
+          "color": { "mode": "thresholds" }
+        }
+      },
+      "options": { "legend": { "displayMode": "hidden" }, "tooltip": { "mode": "single" } },
+      "targets": [{
+        "datasource": { "type": "influxdb", "uid": "InfluxDB" },
+        "query": "from(bucket: \"waste_monitoring\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"bin_telemetry\" and r._field == \"fill_pct\" and r.bin_id == \"BIN_001\")\n  |> aggregateWindow(every: 1m, fn: last, createEmpty: false)\n  |> yield(name: \"physical_fill_history\")",
+        "refId": "A"
+      }]
+    },
+
+    {
+      "id": 25,
+      "title": "Physical Bin — Events",
+      "type": "table",
+      "gridPos": { "x": 0, "y": 39, "w": 24, "h": 6 },
+      "fieldConfig": {
+        "defaults": { "unit": "short" },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "event_type" },
+            "properties": [
+              { "id": "displayName", "value": "Event" },
+              { "id": "custom.width", "value": 120 },
+              { "id": "mappings", "value": [
+                { "type": "value", "options": { "FULL":     { "text": "🔴 FULL",     "color": "red"    } } },
+                { "type": "value", "options": { "RESET":    { "text": "✅ RESET",    "color": "green"  } } },
+                { "type": "value", "options": { "APPROACH": { "text": "👤 APPROACH", "color": "blue"   } } }
+              ]}
+            ]
+          },
+          { "matcher": { "id": "byName", "options": "_time" },
+            "properties": [{ "id": "displayName", "value": "Time" }, { "id": "custom.width", "value": 200 }]
+          }
+        ]
+      },
+      "options": { "sortBy": [{ "displayName": "Time", "desc": true }] },
+      "targets": [{
+        "datasource": { "type": "influxdb", "uid": "InfluxDB" },
+        "query": "from(bucket: \"waste_monitoring\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"bin_events\" and r.bin_id == \"BIN_001\")\n  |> keep(columns: [\"_time\", \"event_type\", \"bin_id\"])\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 50)\n  |> yield(name: \"physical_events\")",
+        "refId": "A"
+      }]
+    }
+
+  ],
+
+  "templating": {
+    "list": [
+      {
+        "name": "zone",
+        "label": "Filter by Zone",
+        "type": "query",
+        "datasource": { "type": "influxdb", "uid": "InfluxDB" },
+        "query": "import \"influxdata/influxdb/schema\"\nschema.tagValues(bucket: \"waste_monitoring\", tag: \"zone\")",
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": { "selected": true, "text": ["All"], "value": ["$__all"] },
+        "refresh": 2,
+        "sort": 1,
+        "definition": "import \"influxdata/influxdb/schema\"\nschema.tagValues(bucket: \"waste_monitoring\", tag: \"zone\")"
+      }
+    ]
+  }
+}
