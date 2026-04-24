@@ -8,7 +8,7 @@ export const CONFIG = {
     ? `${proto}://${window.location.hostname}/mqtt`
     : `ws://${window.location.hostname}:9001`,
   API_BASE_URL: onDomain
-    ? `${window.location.protocol}//${window.location.hostname}/api`
+    ? `${window.location.protocol}//${window.location.hostname}/backend`
     : `http://${window.location.hostname}:8000`,
   PASSWORD: 'password',
   POLL_INTERVAL_MS: 10000,
