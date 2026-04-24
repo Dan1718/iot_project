@@ -31,7 +31,7 @@
 #define WIFI_PASSWORD "YOUR_PASSWORD"
 
 // ── MQTT broker ─────────────────────────────────────────────────────────────
-#define MQTT_BROKER   "192.168.1.100"   // IP of the machine running the server
+#define MQTT_BROKER   "iot.dan1718.dev"  // Production server
 #define MQTT_PORT     1883
 #define MQTT_USER     "smartcity"
 #define MQTT_PASSWORD "password"
