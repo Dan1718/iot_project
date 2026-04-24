@@ -57,8 +57,9 @@ def get_summary() -> list[dict]:
     # ── 1. Latest fill per bin ────────────────────────────────────────────────
     fill_rows = _query(f'''
 from(bucket: "{settings.influxdb_bucket}")
-  |> range(start: -30m)
+  |> range(start: -7d)
   |> filter(fn: (r) => r._measurement == "bin_telemetry" and r._field == "fill_pct")
+  |> filter(fn: (r) => r.zone !~ /^HYD_/ and r.zone != "BIN_001")
   |> group(columns: ["bin_id", "zone"])
   |> last()
   |> keep(columns: ["bin_id", "zone", "_value"])
@@ -105,23 +106,53 @@ from(bucket: "{settings.influxdb_bucket}")
 ''')
     collections = {r["bin_id"]: r["_value"] for r in reset_rows if r.get("bin_id")}
 
-    # ── 5. Assemble per-bin summary ───────────────────────────────────────────
-    result = []
-    for bin_status in bin_registry.get_all():
-        bid = bin_status.bin_id
-        meta = bin_registry.get_metadata(bid)
-        lat = meta.get("lat") or bin_status.lat or 17.385
-        lon = meta.get("lon") or bin_status.lon or 78.4867
-        zone = meta.get("zone") or bin_status.zone or "Unknown"
+    # ── 5. Get lat/lon/zone directly from InfluxDB ────────────────────────────
+    geo_lat = _query(f'''
+from(bucket: "{settings.influxdb_bucket}")
+  |> range(start: -7d)
+  |> filter(fn: (r) => r._measurement == "bin_telemetry" and r._field == "lat")
+  |> filter(fn: (r) => r.zone !~ /^HYD_/ and r.zone != "BIN_001")
+  |> group(columns: ["bin_id", "zone"])
+  |> last()
+  |> keep(columns: ["bin_id", "zone", "_value"])
+''')
+    geo_lon = _query(f'''
+from(bucket: "{settings.influxdb_bucket}")
+  |> range(start: -7d)
+  |> filter(fn: (r) => r._measurement == "bin_telemetry" and r._field == "lon")
+  |> filter(fn: (r) => r.zone !~ /^HYD_/ and r.zone != "BIN_001")
+  |> group(columns: ["bin_id", "zone"])
+  |> last()
+  |> keep(columns: ["bin_id", "zone", "_value"])
+''')
 
-        fill = current_fill.get(bid, bin_status.fill_pct or 0)
-        rate = fill_rate.get(bid, 0.0)  # %/hour, can be negative after collection
-        rate_pos = max(0.0, rate)  # only care about filling direction
+    lat_map = {r["bin_id"]: float(r["_value"]) for r in geo_lat if r.get("bin_id")}
+    lon_map = {r["bin_id"]: float(r["_value"]) for r in geo_lon if r.get("bin_id")}
+    zone_map = {
+        r["bin_id"]: r.get("zone", "Unknown") for r in geo_lat if r.get("bin_id")
+    }
+
+    # Use all bin IDs seen in InfluxDB
+    all_bin_ids = set(current_fill.keys()) | set(lat_map.keys())
+
+    # ── 6. Assemble per-bin summary ───────────────────────────────────────────
+    result = []
+    for bid in all_bin_ids:
+        meta = bin_registry.get_metadata(bid)
+        bin_status = bin_registry.get(bid)
+
+        lat = lat_map.get(bid) or (meta.get("lat") if meta else None) or 17.385
+        lon = lon_map.get(bid) or (meta.get("lon") if meta else None) or 78.4867
+        zone = zone_map.get(bid) or (meta.get("zone") if meta else None) or "Unknown"
+
+        fill = current_fill.get(bid, 0)
+        rate = fill_rate.get(bid, 0.0)
+        rate_pos = max(0.0, rate)
 
         if rate_pos > 0:
             est_hours = round((80 - fill) / rate_pos, 1) if fill < 80 else 0.0
         else:
-            est_hours = None  # not filling — can't predict
+            est_hours = None
 
         result.append(
             {
@@ -134,8 +165,8 @@ from(bucket: "{settings.influxdb_bucket}")
                 "est_hours_to_full": est_hours,
                 "full_events_24h": full_events.get(bid, 0),
                 "collections_24h": collections.get(bid, 0),
-                "is_physical": meta.get("physical", False),
-                "awaiting_reset": bin_status.awaiting_reset,
+                "is_physical": meta.get("physical", False) if meta else False,
+                "awaiting_reset": bin_status.awaiting_reset if bin_status else False,
             }
         )
 
