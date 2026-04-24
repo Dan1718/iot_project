@@ -82,6 +82,14 @@ services:
       - backend
       - mosquitto
 
+  # ── Analytics page ───────────────────────────────────────────────────────────
+  analytics:
+    image: nginx:alpine
+    container_name: smartcity_analytics
+    restart: unless-stopped
+    volumes:
+      - ./analytics:/usr/share/nginx/html:ro
+
   # ── Mock Control Panel ───────────────────────────────────────────────────────
   mockpanel:
     image: nginx:alpine

@@ -20,6 +20,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+import analytics
 import bin_registry
 import mqtt_client
 from config import settings
@@ -151,6 +152,15 @@ def reset_all_bins():
 
     logger.info("reset-all: set %d bins to 20%%", count)
     return {"status": "ok", "bins_reset": count}
+
+
+@app.get("/analytics/summary")
+def analytics_summary():
+    """
+    Per-bin analytics: current fill, fill rate, estimated time to full,
+    event counts. Cached 60s. Used by the /analytics page.
+    """
+    return analytics.get_summary()
 
 
 @app.get("/health")

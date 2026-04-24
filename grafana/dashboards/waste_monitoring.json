@@ -2,7 +2,7 @@
   "title": "Smart City Waste Monitoring — Hyderabad",
   "uid": "smartcity-waste-v1",
   "schemaVersion": 39,
-  "version": 3,
+  "version": 4,
   "refresh": "10s",
   "time": { "from": "now-30d", "to": "now" },
   "tags": ["iot", "waste", "hyderabad"],
@@ -283,6 +283,137 @@
       "targets": [{
         "datasource": { "type": "influxdb", "uid": "InfluxDB" },
         "query": "from(bucket: \"waste_monitoring\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"bin_events\" and r._field == \"value\" and r.event_type == \"RESET\")\n  |> filter(fn: (r) => r.zone =~ /^${zone:regex}$/)\n  |> filter(fn: (r) => r.zone !~ /^HYD_/ and r.zone != \"BIN_001\")\n  |> group(columns: [\"zone\"])\n  |> sum()\n  |> group()\n  |> sort(columns: [\"_value\"], desc: true)\n  |> yield(name: \"resets_by_zone\")",
+        "refId": "A"
+      }]
+    },
+
+    {
+      "id": 30,
+      "title": "── City Analytics ──",
+      "type": "row",
+      "gridPos": { "x": 0, "y": 30, "w": 24, "h": 1 },
+      "collapsed": false
+    },
+
+    {
+      "id": 31,
+      "title": "Bin Fill Heatmap — Hyderabad",
+      "type": "geomap",
+      "gridPos": { "x": 0, "y": 31, "w": 14, "h": 12 },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {},
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 40 },
+              { "color": "red", "value": 80 }
+            ]
+          },
+          "color": { "mode": "thresholds" }
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "fill_pct" },
+            "properties": [{ "id": "displayName", "value": "Fill %" }] },
+          { "matcher": { "id": "byName", "options": "lat" },
+            "properties": [{ "id": "displayName", "value": "Latitude" }] },
+          { "matcher": { "id": "byName", "options": "lon" },
+            "properties": [{ "id": "displayName", "value": "Longitude" }] }
+        ]
+      },
+      "options": {
+        "view": { "id": "coords", "lat": 17.385, "lon": 78.4867, "zoom": 11 },
+        "layers": [
+          {
+            "type": "markers",
+            "name": "Bins",
+            "config": {
+              "style": {
+                "size": { "fixed": 10, "min": 2, "max": 15, "field": "fill_pct" },
+                "color": { "field": "fill_pct", "fixed": "dark-green" },
+                "opacity": 0.8,
+                "symbol": { "mode": "fixed", "fixed": "img/icons/marker/circle.svg" },
+                "symbolAlign": { "wrapText": false }
+              },
+              "showLegend": true
+            },
+            "location": { "mode": "coords", "latitude": "lat", "longitude": "lon" },
+            "tooltip": true
+          }
+        ],
+        "controls": { "showZoom": true, "mouseWheelZoom": true, "showAttribution": true, "showScale": false, "showMeasure": false, "showDebug": false },
+        "tooltip": { "mode": "details" },
+        "basemap": { "type": "default", "name": "Basemap", "config": {} }
+      },
+      "targets": [{
+        "datasource": { "type": "influxdb", "uid": "InfluxDB" },
+        "query": "from(bucket: \"waste_monitoring\")\n  |> range(start: -30m)\n  |> filter(fn: (r) => r._measurement == \"bin_telemetry\" and (r._field == \"fill_pct\" or r._field == \"lat\" or r._field == \"lon\"))\n  |> filter(fn: (r) => r.zone !~ /^HYD_/ and r.zone != \"BIN_001\")\n  |> group(columns: [\"bin_id\", \"_field\"])\n  |> last()\n  |> pivot(rowKey: [\"bin_id\"], columnKey: [\"_field\"], valueColumn: \"_value\")\n  |> yield(name: \"geomap\")",
+        "refId": "A"
+      }]
+    },
+
+    {
+      "id": 32,
+      "title": "Fill Rate by Zone (% per hour)",
+      "type": "bargauge",
+      "gridPos": { "x": 14, "y": 31, "w": 10, "h": 6 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 2 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "reduceOptions": { "calcs": ["mean"], "values": false },
+        "showUnfilled": true
+      },
+      "targets": [{
+        "datasource": { "type": "influxdb", "uid": "InfluxDB" },
+        "query": "from(bucket: \"waste_monitoring\")\n  |> range(start: -2h)\n  |> filter(fn: (r) => r._measurement == \"bin_telemetry\" and r._field == \"fill_pct\")\n  |> filter(fn: (r) => r.zone !~ /^HYD_/ and r.zone != \"BIN_001\")\n  |> group(columns: [\"zone\"])\n  |> aggregateWindow(every: 30m, fn: mean, createEmpty: false)\n  |> difference()\n  |> mean()\n  |> map(fn: (r) => ({ r with _value: r._value * 2.0, _field: r.zone }))\n  |> yield(name: \"fill_rate\")",
+        "refId": "A"
+      }]
+    },
+
+    {
+      "id": 33,
+      "title": "Estimated Time to Full — Top 10 Fastest Filling Bins",
+      "type": "table",
+      "gridPos": { "x": 14, "y": 37, "w": 10, "h": 6 },
+      "fieldConfig": {
+        "defaults": { "unit": "short" },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "bin_id" },
+            "properties": [{ "id": "displayName", "value": "Bin" }, { "id": "custom.width", "value": 90 }] },
+          { "matcher": { "id": "byName", "options": "zone" },
+            "properties": [{ "id": "displayName", "value": "Zone" }] },
+          { "matcher": { "id": "byName", "options": "_value" },
+            "properties": [
+              { "id": "displayName", "value": "Fill Rate %/hr" },
+              { "id": "custom.width", "value": 130 },
+              { "id": "thresholds", "value": { "mode": "absolute", "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 1 },
+                  { "color": "red", "value": 2 }
+                ]}},
+              { "id": "custom.displayMode", "value": "color-background" }
+            ]}
+        ]
+      },
+      "options": { "sortBy": [{ "displayName": "Fill Rate %/hr", "desc": true }] },
+      "targets": [{
+        "datasource": { "type": "influxdb", "uid": "InfluxDB" },
+        "query": "from(bucket: \"waste_monitoring\")\n  |> range(start: -2h)\n  |> filter(fn: (r) => r._measurement == \"bin_telemetry\" and r._field == \"fill_pct\")\n  |> filter(fn: (r) => r.zone !~ /^HYD_/ and r.zone != \"BIN_001\")\n  |> group(columns: [\"bin_id\", \"zone\"])\n  |> aggregateWindow(every: 30m, fn: mean, createEmpty: false)\n  |> difference()\n  |> mean()\n  |> map(fn: (r) => ({ r with _value: r._value * 2.0 }))\n  |> group()\n  |> sort(columns: [\"_value\"], desc: true)\n  |> limit(n: 10)\n  |> keep(columns: [\"bin_id\", \"zone\", \"_value\"])\n  |> yield(name: \"top_fill_rate\")",
         "refId": "A"
       }]
     },
