@@ -541,7 +541,7 @@
             <span class="slider-sw"></span>
           </label>
         </div>
-        <button class="btn btn-primary" onclick="publishTelemetry()">Publish Now</button>
+        <button class="btn btn-primary" onclick="publishTelemetry(true)">Publish Now</button>
       </div>
 
     </div>
@@ -564,11 +564,12 @@
   const topicCmd = `city/bins/${BIN_ID}/cmd`;
 
   // ── State ───────────────────────────────────────────────────────────────────
-  let fillPct   = 30;
-  let ldrRaw    = 2000;
-  let irOn      = false;
-  let autoTimer = null;
-  let client    = null;
+  let fillPct     = 30;
+  let ldrRaw      = 2000;
+  let irOn        = false;
+  let autoTimer   = null;
+  let autoEnabled = true;   // tracks whether auto-publish is on
+  let client      = null;
 
   // ── DOM refs ─────────────────────────────────────────────────────────────────
   const fillBar    = document.getElementById('fill-bar');
@@ -634,14 +635,19 @@
         fillSlider.value = 0;
         updateVisual();
         addLog('reset', 'Remote RESET received from worker console');
+        // Always fire the RESET event so backend knows the bin was collected
         fireEvent('RESET', true);
-        publishTelemetry();
+        // Only publish updated telemetry if auto-publish is on
+        if (autoEnabled) publishTelemetry();
       }
     });
   }
 
   // ── Publish ──────────────────────────────────────────────────────────────────
-  function publishTelemetry() {
+
+  // forceSend = true bypasses the autoEnabled gate (used by "Publish Now" button)
+  function publishTelemetry(forceSend = false) {
+    if (!autoEnabled && !forceSend) return;   // paused — do nothing
     if (!client?.connected) { addLog('system', 'Not connected'); return; }
     const lampOn = ldrRaw < 1500;
     const payload = JSON.stringify({
@@ -685,7 +691,9 @@
   }
 
   function toggleAuto(on) {
+    autoEnabled = on;
     clearInterval(autoTimer);
+    autoTimer = null;
     if (on) autoTimer = setInterval(publishTelemetry, 10000);
   }
 
