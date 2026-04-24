@@ -2,7 +2,7 @@
   "title": "Smart City Waste Monitoring — Hyderabad",
   "uid": "smartcity-waste-v1",
   "schemaVersion": 39,
-  "version": 6,
+  "version": 7,
   "refresh": "10s",
   "time": { "from": "now-30d", "to": "now" },
   "tags": ["iot", "waste", "hyderabad"],
@@ -208,24 +208,52 @@
       "gridPos": { "x": 0, "y": 15, "w": 24, "h": 8 },
       "fieldConfig": {
         "defaults": {
-          "custom": { "drawStyle": "bars", "fillOpacity": 70, "lineWidth": 0, "barAlignment": 0 },
-          "unit": "short"
+          "custom": { "drawStyle": "bars", "fillOpacity": 75, "lineWidth": 0, "barAlignment": 0, "barWidthFactor": 0.9 },
+          "unit": "short",
+          "color": { "mode": "palette-classic" }
         },
         "overrides": [
           { "matcher": { "id": "byName", "options": "FULL" },
-            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }] },
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "#E02F44" } },
+              { "id": "displayName", "value": "Full" }
+            ]
+          },
           { "matcher": { "id": "byName", "options": "APPROACH" },
-            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "#5794F2" } }] },
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "#3274D9" } },
+              { "id": "displayName", "value": "Approach" }
+            ]
+          },
           { "matcher": { "id": "byName", "options": "RESET" },
-            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } }] }
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "#56A64B" } },
+              { "id": "displayName", "value": "Reset (Collected)" }
+            ]
+          }
         ]
       },
-      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
-      "targets": [{
-        "datasource": { "type": "influxdb", "uid": "InfluxDB" },
-        "query": "from(bucket: \"waste_monitoring\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"bin_events\" and r._field == \"value\")\n  |> group(columns: [\"event_type\"])\n  |> aggregateWindow(every: 1h, fn: sum, createEmpty: false)\n  |> map(fn: (r) => ({ r with _field: r.event_type }))\n  |> group()\n  |> yield(name: \"events\")",
-        "refId": "A"
-      }]
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "multi" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "influxdb", "uid": "InfluxDB" },
+          "query": "from(bucket: \"waste_monitoring\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"bin_events\" and r._field == \"value\" and r.event_type == \"FULL\")\n  |> group()\n  |> aggregateWindow(every: 1h, fn: sum, createEmpty: false)\n  |> map(fn: (r) => ({ r with _field: \"FULL\" }))\n  |> yield(name: \"full\")",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "InfluxDB" },
+          "query": "from(bucket: \"waste_monitoring\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"bin_events\" and r._field == \"value\" and r.event_type == \"APPROACH\")\n  |> group()\n  |> aggregateWindow(every: 1h, fn: sum, createEmpty: false)\n  |> map(fn: (r) => ({ r with _field: \"APPROACH\" }))\n  |> yield(name: \"approach\")",
+          "refId": "B"
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "InfluxDB" },
+          "query": "from(bucket: \"waste_monitoring\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"bin_events\" and r._field == \"value\" and r.event_type == \"RESET\")\n  |> group()\n  |> aggregateWindow(every: 1h, fn: sum, createEmpty: false)\n  |> map(fn: (r) => ({ r with _field: \"RESET\" }))\n  |> yield(name: \"reset\")",
+          "refId": "C"
+        }
+      ]
     },
 
     {
