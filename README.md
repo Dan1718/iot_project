@@ -1,5 +1,6 @@
 # Smart City Waste Monitoring and Alert System
 
+--- Heavy ai usage alert, this was for a demo project
 This repository contains a complete end-to-end smart waste monitoring platform built around an ESP32 smart bin, a city-scale simulator, a FastAPI backend, InfluxDB time-series storage, Grafana analytics, a worker web console, a browser-based demo control panel, and a mobile worker app.
 
 The project started as a single smart dustbin demonstration and was extended into a city-scale platform that can model hundreds of bins across Hyderabad, detect patterns in waste accumulation, and support operational decisions such as collection timing, overload detection, and future bin placement.
@@ -102,21 +103,21 @@ This repository exposes three human-facing operator surfaces:
 
 It also exposes one demo/testing interface:
 
-4. **Smart Bin Demo Control Panel**
+1. **Smart Bin Demo Control Panel**
 
 ## 4. Technology Stack
 
-| Layer | Technology | Purpose |
-|---|---|---|
-| Device firmware | ESP32 + Arduino C++ | Sensor reading, LEDs, MQTT publishing |
-| Broker | Mosquitto | Lightweight MQTT routing |
-| Backend | FastAPI | Stores latest state, exposes REST API, sends reset commands |
-| Time-series DB | InfluxDB 2.x | Stores telemetry and events |
-| Dashboard | Grafana | Analytics and alert visualization |
-| City simulator | Python | Creates realistic historical and live bin traffic |
-| Web worker console | React + Vite | Staff-facing browser console |
-| Mobile worker console | Expo / React Native | Staff-facing mobile app |
-| Demo panel | Static HTML/CSS/JS + MQTT over WebSocket | Simulated physical bin control |
+| Layer                 | Technology                               | Purpose                                                     |
+| --------------------- | ---------------------------------------- | ----------------------------------------------------------- |
+| Device firmware       | ESP32 + Arduino C++                      | Sensor reading, LEDs, MQTT publishing                       |
+| Broker                | Mosquitto                                | Lightweight MQTT routing                                    |
+| Backend               | FastAPI                                  | Stores latest state, exposes REST API, sends reset commands |
+| Time-series DB        | InfluxDB 2.x                             | Stores telemetry and events                                 |
+| Dashboard             | Grafana                                  | Analytics and alert visualization                           |
+| City simulator        | Python                                   | Creates realistic historical and live bin traffic           |
+| Web worker console    | React + Vite                             | Staff-facing browser console                                |
+| Mobile worker console | Expo / React Native                      | Staff-facing mobile app                                     |
+| Demo panel            | Static HTML/CSS/JS + MQTT over WebSocket | Simulated physical bin control                              |
 
 ## 5. Repository Structure
 
@@ -139,15 +140,15 @@ iot_project/
 
 When the stack is running, these are the important ports:
 
-| Service | URL / Port | Purpose |
-|---|---|---|
-| FastAPI backend | `http://localhost:8000` | REST API |
-| Mock panel | `http://localhost:8080` | Demo control panel |
-| Worker web console | `http://localhost:8081` | Browser worker app |
-| Grafana | `http://localhost:3000` | Dashboard |
-| InfluxDB | `http://localhost:8086` | Time-series DB |
-| MQTT TCP | `localhost:1883` | MQTT broker for ESP32, simulator, backend |
-| MQTT WebSocket | `ws://localhost:9001` | MQTT for browser clients |
+| Service            | URL / Port              | Purpose                                   |
+| ------------------ | ----------------------- | ----------------------------------------- |
+| FastAPI backend    | `http://localhost:8000` | REST API                                  |
+| Mock panel         | `http://localhost:8080` | Demo control panel                        |
+| Worker web console | `http://localhost:8081` | Browser worker app                        |
+| Grafana            | `http://localhost:3000` | Dashboard                                 |
+| InfluxDB           | `http://localhost:8086` | Time-series DB                            |
+| MQTT TCP           | `localhost:1883`        | MQTT broker for ESP32, simulator, backend |
+| MQTT WebSocket     | `ws://localhost:9001`   | MQTT for browser clients                  |
 
 ## 7. Authentication Model
 
@@ -165,10 +166,10 @@ The following are intentionally left unauthenticated for local development and d
 
 The human-facing UIs require a passcode:
 
-| UI | Passcode |
-|---|---|
+| UI                 | Passcode   |
+| ------------------ | ---------- |
 | Worker web console | `password` |
-| Worker mobile app | `password` |
+| Worker mobile app  | `password` |
 | Demo control panel | `password` |
 
 This means UI access is gated, but device/API traffic is not blocked by auth.
@@ -177,13 +178,13 @@ This means UI access is gated, but device/API traffic is not blocked by auth.
 
 The physical smart bin is built around the following sensors and indicators:
 
-| Component | Role |
-|---|---|
+| Component         | Role                                        |
+| ----------------- | ------------------------------------------- |
 | Ultrasonic sensor | Measures distance from lid to garbage level |
-| IR sensor | Detects a person approaching |
-| LDR | Detects day/night conditions |
-| Capacitive touch | Lets a cleaner reset the bin |
-| LEDs | Show empty / half / full / lamp states |
+| IR sensor         | Detects a person approaching                |
+| LDR               | Detects day/night conditions                |
+| Capacitive touch  | Lets a cleaner reset the bin                |
+| LEDs              | Show empty / half / full / lamp states      |
 
 ### Status logic
 
@@ -206,17 +207,17 @@ Full wiring details are in `firmware/smart_bin/WIRING.md`.
 
 ### Main pin mapping
 
-| Function | ESP32 Pin |
-|---|---|
-| Ultrasonic TRIG | `GPIO 5` |
-| Ultrasonic ECHO | `GPIO 18` |
-| IR sensor | `GPIO 19` |
-| LDR | `GPIO 34` |
-| Touch reset | `GPIO 4 / T0` |
-| Green LED | `GPIO 25` |
-| Yellow LED | `GPIO 26` |
-| Red LED | `GPIO 27` |
-| Lamp LED | `GPIO 32` |
+| Function        | ESP32 Pin     |
+| --------------- | ------------- |
+| Ultrasonic TRIG | `GPIO 5`      |
+| Ultrasonic ECHO | `GPIO 18`     |
+| IR sensor       | `GPIO 19`     |
+| LDR             | `GPIO 34`     |
+| Touch reset     | `GPIO 4 / T0` |
+| Green LED       | `GPIO 25`     |
+| Yellow LED      | `GPIO 26`     |
+| Red LED         | `GPIO 27`     |
+| Lamp LED        | `GPIO 32`     |
 
 Important hardware note:
 
@@ -251,14 +252,14 @@ Key values:
 
 ### Meaning of important firmware constants
 
-| Constant | Meaning |
-|---|---|
-| `BIN_EMPTY_CM` | Sensor-to-floor distance when empty |
-| `BIN_FULL_CM` | Sensor distance considered “full” |
-| `FILL_HALF_PCT` | Threshold for yellow LED |
-| `FILL_FULL_PCT` | Threshold for red LED and full event |
-| `LDR_DARK_THRESHOLD` | ADC value below which lamp turns on |
-| `TELEMETRY_INTERVAL_MS` | How often telemetry is published |
+| Constant                | Meaning                              |
+| ----------------------- | ------------------------------------ |
+| `BIN_EMPTY_CM`          | Sensor-to-floor distance when empty  |
+| `BIN_FULL_CM`           | Sensor distance considered “full”    |
+| `FILL_HALF_PCT`         | Threshold for yellow LED             |
+| `FILL_FULL_PCT`         | Threshold for red LED and full event |
+| `LDR_DARK_THRESHOLD`    | ADC value below which lamp turns on  |
+| `TELEMETRY_INTERVAL_MS` | How often telemetry is published     |
 
 ## 11. MQTT Topic Design
 
@@ -328,16 +329,16 @@ The FastAPI backend does not just expose REST. It also maintains live operationa
 
 ### Backend REST endpoints
 
-| Endpoint | Method | Meaning |
-|---|---|---|
-| `/health` | GET | Health check |
-| `/bins` | GET | Latest status of all bins |
-| `/bins/full` | GET | Bins currently awaiting collection |
-| `/bins/{bin_id}` | GET | Status of one bin |
-| `/bins/{bin_id}/reset` | POST | Send a reset command to a bin |
-| `/bins/register` | POST | Register static metadata for a bin |
-| `/bins/physical` | GET | Physical bins only |
-| `/webhook/grafana-alert` | POST | Alert receiver for Grafana |
+| Endpoint                 | Method | Meaning                            |
+| ------------------------ | ------ | ---------------------------------- |
+| `/health`                | GET    | Health check                       |
+| `/bins`                  | GET    | Latest status of all bins          |
+| `/bins/full`             | GET    | Bins currently awaiting collection |
+| `/bins/{bin_id}`         | GET    | Status of one bin                  |
+| `/bins/{bin_id}/reset`   | POST   | Send a reset command to a bin      |
+| `/bins/register`         | POST   | Register static metadata for a bin |
+| `/bins/physical`         | GET    | Physical bins only                 |
+| `/webhook/grafana-alert` | POST   | Alert receiver for Grafana         |
 
 ### Example response from `/bins/BIN_001`
 
@@ -412,19 +413,19 @@ It is provisioned automatically on startup.
 
 ### What the main panels mean
 
-| Panel | Meaning |
-|---|---|
-| City-wide Average Fill Level | Average current fill across the city bins |
-| Bins Awaiting Collection | Count of bins that are effectively full |
-| Approach Events | Footfall/interaction indicator |
-| Collections Today | Number of RESET events |
-| Street Lamps On | Number of low-light bins |
-| Average Fill Level by Zone | Which zones are filling faster |
-| Fill Level Over Time — Avg per Zone | Per-zone trend lines over time |
-| Event Timeline | FULL / APPROACH / RESET event activity |
-| Top 10 Bins | Highest fill bins right now |
-| Collections by Zone | Where cleanup workload is concentrated |
-| Physical Bin section | Dedicated monitoring for `BIN_001` |
+| Panel                               | Meaning                                   |
+| ----------------------------------- | ----------------------------------------- |
+| City-wide Average Fill Level        | Average current fill across the city bins |
+| Bins Awaiting Collection            | Count of bins that are effectively full   |
+| Approach Events                     | Footfall/interaction indicator            |
+| Collections Today                   | Number of RESET events                    |
+| Street Lamps On                     | Number of low-light bins                  |
+| Average Fill Level by Zone          | Which zones are filling faster            |
+| Fill Level Over Time — Avg per Zone | Per-zone trend lines over time            |
+| Event Timeline                      | FULL / APPROACH / RESET event activity    |
+| Top 10 Bins                         | Highest fill bins right now               |
+| Collections by Zone                 | Where cleanup workload is concentrated    |
+| Physical Bin section                | Dedicated monitoring for `BIN_001`        |
 
 ### Important dashboard cleanup logic
 
@@ -436,18 +437,18 @@ The project includes Grafana alert rules.
 
 ### Demo bin alerts
 
-| Alert | Meaning |
-|---|---|
-| `DemoBinFull` | `BIN_001` reached or exceeded 80% |
+| Alert                 | Meaning                                                 |
+| --------------------- | ------------------------------------------------------- |
+| `DemoBinFull`         | `BIN_001` reached or exceeded 80%                       |
 | `DemoBinNoCollection` | `BIN_001` remained full for the demo collection timeout |
 
 ### City alerts
 
-| Alert | Meaning |
-|---|---|
-| `BinFullNoCollection` | One or more simulated bins stayed full too long |
-| `ZoneOverload` | A zone has multiple full bins simultaneously |
-| `CityFillSpike` | City-wide average fill level is unusually high |
+| Alert                 | Meaning                                                |
+| --------------------- | ------------------------------------------------------ |
+| `BinFullNoCollection` | One or more simulated bins stayed full too long        |
+| `ZoneOverload`        | A zone has multiple full bins simultaneously           |
+| `CityFillSpike`       | City-wide average fill level is unusually high         |
 | `NoCollectionsInZone` | A simulated zone had no reset events for a long period |
 
 ## 16. City Simulator
